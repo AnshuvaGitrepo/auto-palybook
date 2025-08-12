@@ -3,22 +3,30 @@
   hosts: all
   become: yes
   tasks:
-    - name: Enable backports repo
-      ansible.builtin.apt_repository:
-        repo: "deb http://deb.debian.org/debian bookworm-backports main contrib non-free"
-        state: present
-
-    - name: Update apt cache
+    - name: Install required tools
       ansible.builtin.apt:
+        name:
+          - curl
+          - tar
+        state: present
         update_cache: yes
 
-    - name: Install curl
-      ansible.builtin.apt:
-        name: curl
-        state: present
+    - name: Get latest fastfetch release URL
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest
+        return_content: yes
+      register: release_data
 
-    - name: Install fastfetch from backports
+    - name: Extract .deb download URL
+      set_fact:
+        fastfetch_deb_url: "{{ release_data.json.assets | selectattr('name', 'search', 'amd64.deb') | map(attribute='browser_download_url') | first }}"
+
+    - name: Download fastfetch .deb
+      ansible.builtin.get_url:
+        url: "{{ fastfetch_deb_url }}"
+        dest: /tmp/fastfetch.deb
+        mode: '0644'
+
+    - name: Install fastfetch
       ansible.builtin.apt:
-        name: fastfetch
-        default_release: bookworm-backports
-        state: present
+        deb: /tmp/fastfetch.deb
