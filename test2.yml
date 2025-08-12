@@ -1,5 +1,5 @@
 ---
-- name: Install NGINX from GitHub Release
+- name: Install NGINX from GitHub Release and set default port to 90
   hosts: all
   become: yes
   vars:
@@ -46,5 +46,17 @@
         ./auto/configure --with-http_ssl_module
         make
         make install
+      args:
+        executable: /bin/bash
+
+    - name: Change NGINX default port to 90
+      ansible.builtin.replace:
+        path: /usr/local/nginx/conf/nginx.conf
+        regexp: 'listen\s+80;'
+        replace: 'listen 90;'
+
+    - name: Start NGINX
+      ansible.builtin.shell: |
+        /usr/local/nginx/sbin/nginx
       args:
         executable: /bin/bash
