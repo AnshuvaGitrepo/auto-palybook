@@ -1,0 +1,24 @@
+---
+- name: Install fastfetch on Debian 12
+  hosts: all
+  become: yes
+  tasks:
+    - name: Enable backports repo
+      ansible.builtin.apt_repository:
+        repo: "deb http://deb.debian.org/debian bookworm-backports main contrib non-free"
+        state: present
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install curl
+      ansible.builtin.apt:
+        name: curl
+        state: present
+
+    - name: Install fastfetch from backports
+      ansible.builtin.apt:
+        name: fastfetch
+        default_release: bookworm-backports
+        state: present
