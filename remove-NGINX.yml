@@ -1,0 +1,37 @@
+---
+- name: Remove NGINX (GitHub source) completely
+  hosts: all
+  become: yes
+  tasks:
+    - name: Stop NGINX if running
+      ansible.builtin.shell: |
+        if pgrep nginx >/dev/null; then
+          /usr/local/nginx/sbin/nginx -s stop || true
+        fi
+      args:
+        executable: /bin/bash
+      ignore_errors: yes
+
+    - name: Remove NGINX installation directory
+      ansible.builtin.file:
+        path: /usr/local/nginx
+        state: absent
+
+    - name: Remove NGINX source files from /tmp
+      ansible.builtin.file:
+        path: /tmp/nginx-*
+        state: absent
+
+    - name: Remove NGINX tarball from /tmp
+      ansible.builtin.file:
+        path: /tmp/nginx.tar.gz
+        state: absent
+
+    - name: Remove NGINX systemd service if exists
+      ansible.builtin.file:
+        path: /etc/systemd/system/nginx.service
+        state: absent
+
+    - name: Reload systemd if service file was removed
+      ansible.builtin.systemd:
+        daemon_reload: yes
