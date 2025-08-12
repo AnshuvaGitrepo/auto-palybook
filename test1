@@ -1,2 +1,13 @@
-apt-get update
-apt-get upgrade
+---
+- name: Update and upgrade packages on Debian/Ubuntu
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt package cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600  # Optional: skip update if cache is recent
+
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        upgrade: dist  # 'yes' for normal upgrade, 'dist' for full dist-upgrade
