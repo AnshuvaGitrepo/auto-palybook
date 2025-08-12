@@ -1,0 +1,50 @@
+---
+- name: Install NGINX from GitHub Release
+  hosts: all
+  become: yes
+  vars:
+    nginx_repo: "nginx/nginx"   # GitHub repo path
+  tasks:
+    - name: Install build dependencies
+      ansible.builtin.apt:
+        name:
+          - curl
+          - build-essential
+          - libpcre3
+          - libpcre3-dev
+          - zlib1g
+          - zlib1g-dev
+          - libssl-dev
+        state: present
+        update_cache: yes
+
+    - name: Get latest NGINX release tag from GitHub
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/{{ nginx_repo }}/tags"
+        return_content: yes
+      register: nginx_tags
+
+    - name: Set latest tag fact
+      set_fact:
+        nginx_latest_tag: "{{ (nginx_tags.json | first).name }}"
+
+    - name: Download latest NGINX source tarball
+      ansible.builtin.get_url:
+        url: "https://github.com/{{ nginx_repo }}/archive/refs/tags/{{ nginx_latest_tag }}.tar.gz"
+        dest: "/tmp/nginx.tar.gz"
+        mode: '0644'
+
+    - name: Extract NGINX source
+      ansible.builtin.unarchive:
+        src: "/tmp/nginx.tar.gz"
+        dest: "/tmp/"
+        remote_src: yes
+
+    - name: Configure and compile NGINX
+      ansible.builtin.shell: |
+        cd /tmp/nginx-*
+        ./auto/configure --with-http_ssl_module
+        make
+        make install
+      args:
+        executable: /bin/bash
