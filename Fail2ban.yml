@@ -1,0 +1,60 @@
+---
+- name: Setup Fail2ban with SSH protection on Debian/Ubuntu
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Set timezone to Asia/Kolkata
+      ansible.builtin.command: timedatectl set-timezone 'Asia/Kolkata'
+      changed_when: false
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - fail2ban
+          - nano
+          - inetutils-syslogd
+        state: present
+        update_cache: yes
+
+    - name: Ensure Fail2ban directory exists
+      ansible.builtin.file:
+        path: /etc/fail2ban
+        state: directory
+        mode: '0755'
+
+    - name: Configure jail.local for SSH protection
+      ansible.builtin.copy:
+        dest: /etc/fail2ban/jail.local
+        content: |
+          # config for SSH:
+
+          [sshd]
+          enabled = true
+          port = ssh
+          filter = sshd
+          logpath = /var/log/auth.log
+          maxretry = 3
+          bantime = 3600
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Enable and start Fail2ban service
+      ansible.builtin.systemd:
+        name: fail2ban
+        enabled: yes
+        state: restarted
+
+    - name: Ensure SSH jail is started in Fail2ban
+      ansible.builtin.command: fail2ban-client start sshd
+      register: start_sshd_jail
+      failed_when: start_sshd_jail.rc != 0 and "is already running" not in start_sshd_jail.stderr
+
+    - name: Check SSH jail status
+      ansible.builtin.command: fail2ban-client status sshd
+      register: sshd_jail_status
+
+    - name: Show SSH jail status output
+      ansible.builtin.debug:
+        var: sshd_jail_status.stdout
