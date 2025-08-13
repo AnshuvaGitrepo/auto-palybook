@@ -1,13 +1,26 @@
 ---
-- name: Update and upgrade packages on Debian/Ubuntu
+- name: Update, upgrade, set timezone, and clean packages
   hosts: all
   become: yes
   tasks:
+
     - name: Update apt package cache
       ansible.builtin.apt:
         update_cache: yes
-        cache_valid_time: 3600  # Optional: skip update if cache is recent
+        cache_valid_time: 3600
 
-    - name: Upgrade all packages
+    - name: Upgrade all packages (dist-upgrade)
       ansible.builtin.apt:
-        upgrade: dist  # 'yes' for normal upgrade, 'dist' for full dist-upgrade
+        upgrade: dist
+
+    - name: Set timezone to Asia/Kolkata
+      ansible.builtin.timezone:
+        name: Asia/Kolkata
+
+    - name: Autoremove unnecessary packages
+      ansible.builtin.apt:
+        autoremove: yes
+
+    - name: Autoclean apt cache
+      ansible.builtin.apt:
+        autoclean: yes
