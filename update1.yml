@@ -1,5 +1,5 @@
 version: v1.0
-name: Update & Upgrade System
+name: Fastfetch Uninstall on Server
 
 agent:
   machine:
@@ -7,11 +7,13 @@ agent:
     os_image: ubuntu2004
 
 blocks:
-  - name: Run Update Script
+  - name: SSH to server & uninstall
     task:
+      secrets:
+        - name: ssh-credentials
       jobs:
-        - name: Update System
+        - name: Remote Uninstall
           commands:
             - checkout
-            - chmod +x update_upgrade.sh
-            - ./update_upgrade.sh
+            - chmod +x uninstall_fastfetch.sh
+            - ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST 'bash -s' < uninstall_fastfetch.sh
