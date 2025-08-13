@@ -1,31 +1,19 @@
-#!/bin/bash
-set -e
+version: v1.0
+name: Uninstall Fastfetch on Remote Server
 
-echo "Uninstalling Fastfetch..."
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu2004
 
-# If installed via apt
-if command -v fastfetch &>/dev/null; then
-    if dpkg -l | grep -q fastfetch; then
-        echo "Removing Fastfetch (apt)..."
-        apt-get remove --purge -y fastfetch
-        apt-get autoremove -y
-    else
-        echo "Fastfetch binary found but not an apt package."
-    fi
-else
-    echo "Fastfetch command not found."
-fi
-
-# If installed from source in /usr/local
-if [ -f "/usr/local/bin/fastfetch" ]; then
-    echo "Removing Fastfetch binary from /usr/local..."
-    rm -f /usr/local/bin/fastfetch
-fi
-
-# If installed in user home dir
-if [ -f "$HOME/.local/bin/fastfetch" ]; then
-    echo "Removing Fastfetch binary from user local bin..."
-    rm -f "$HOME/.local/bin/fastfetch"
-fi
-
-echo "Fastfetch uninstall complete!"
+blocks:
+  - name: SSH to Server & Uninstall Fastfetch
+    task:
+      secrets:
+        - name: ssh-credentials
+      jobs:
+        - name: Remote Uninstall
+          commands:
+            - checkout
+            - chmod +x uninstall_fastfetch.sh
+            - ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST 'bash -s' < uninstall_fastfetch.sh
