@@ -1,9 +1,9 @@
 ---
-- name: Install fastfetch on Debian 12 (PC + Raspberry Pi)
+- name: Install fastfetch on Debian 12 PC + Raspberry Pi
   hosts: all
   become: yes
   tasks:
-    - name: Install required tools
+    - name: Install required tools for both methods
       ansible.builtin.apt:
         name:
           - curl
@@ -28,7 +28,7 @@
         return_content: yes
       register: release_data
 
-    - name: Search for .deb URL
+    - name: Search for .deb URL matching architecture
       set_fact:
         fastfetch_deb_url_list: >-
           {{
@@ -70,12 +70,14 @@
             state: directory
 
         - name: Compile fastfetch
-          ansible.builtin.command:
-            cmd: cmake .. && make -j$(nproc)
+          ansible.builtin.shell: |
+            cmake ..
+            make -j"$(nproc)"
+          args:
             chdir: /tmp/fastfetch-src/build
 
         - name: Install compiled fastfetch
-          ansible.builtin.command:
-            cmd: make install
+          ansible.builtin.shell: make install
+          args:
             chdir: /tmp/fastfetch-src/build
       when: fastfetch_deb_url is not defined
