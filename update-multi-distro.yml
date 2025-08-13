@@ -1,0 +1,89 @@
+---
+- name: Universal Update, Upgrade, Timezone, and Cleanup
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    supported_architectures: ['x86_64', 'i386', 'i686', 'armv7l', 'aarch64']
+
+  tasks:
+
+    - name: Show detected OS and architecture
+      ansible.builtin.debug:
+        msg: "OS: {{ ansible_distribution }} {{ ansible_distribution_version }} | Arch: {{ ansible_architecture }}"
+
+    # =========================
+    # Debian/Ubuntu/Raspbian
+    # =========================
+    - name: Update apt package cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when:
+        - ansible_os_family == "Debian"
+        - ansible_architecture in supported_architectures
+
+    - name: Upgrade all packages (Debian-based)
+      ansible.builtin.apt:
+        upgrade: dist
+      when:
+        - ansible_os_family == "Debian"
+        - ansible_architecture in supported_architectures
+
+    - name: Autoremove unnecessary packages (Debian-based)
+      ansible.builtin.apt:
+        autoremove: yes
+      when:
+        - ansible_os_family == "Debian"
+        - ansible_architecture in supported_architectures
+
+    - name: Autoclean apt cache (Debian-based)
+      ansible.builtin.apt:
+        autoclean: yes
+      when:
+        - ansible_os_family == "Debian"
+        - ansible_architecture in supported_architectures
+
+    # =========================
+    # RedHat/CentOS/Fedora/AlmaLinux
+    # =========================
+    - name: Update all packages (RedHat-based)
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_architecture in supported_architectures
+
+    - name: Clean DNF cache (RedHat-based)
+      ansible.builtin.command: dnf clean all
+      when:
+        - ansible_os_family == "RedHat"
+        - ansible_architecture in supported_architectures
+
+    # =========================
+    # Arch Linux / Manjaro
+    # =========================
+    - name: Update all packages (Arch-based)
+      ansible.builtin.pacman:
+        update_cache: yes
+        upgrade: yes
+      when:
+        - ansible_os_family == "Archlinux"
+        - ansible_architecture in supported_architectures
+
+    - name: Clean Pacman cache (Arch-based)
+      ansible.builtin.command: pacman -Sc --noconfirm
+      when:
+        - ansible_os_family == "Archlinux"
+        - ansible_architecture in supported_architectures
+
+    # =========================
+    # Common tasks for all distros
+    # =========================
+    - name: Set timezone to Asia/Kolkata
+      ansible.builtin.timezone:
+        name: Asia/Kolkata
+      when:
+        - ansible_architecture in supported_architectures
