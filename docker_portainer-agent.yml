@@ -1,0 +1,64 @@
+---
+- name: Install Docker and Portainer Agent
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Ensure Docker is installed
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Ensure AppArmor and utilities are installed (for error fix)
+      apt:
+        name:
+          - apparmor
+          - apparmor-utils
+        state: present
+        update_cache: yes
+
+    - name: Restart AppArmor
+      systemd:
+        name: apparmor
+        state: restarted
+        enabled: yes
+
+    - name: Reload Docker AppArmor profile
+      command: apparmor_parser -r /etc/apparmor.d/docker
+      ignore_errors: yes
+
+    - name: Check AppArmor status
+      command: aa-status
+      register: apparmor_status
+      changed_when: false
+
+    - name: Restart Docker
+      systemd:
+        name: docker
+        state: restarted
+        enabled: yes
+
+    - name: Stop and disable AppArmor (if required)
+      systemd:
+        name: apparmor
+        state: stopped
+        enabled: no
+
+    - name: Remove existing Portainer Agent container if present
+      community.docker.docker_container:
+        name: portainer_agent
+        state: absent
+      ignore_errors: yes
+
+    - name: Run Portainer Agent container
+      community.docker.docker_container:
+        name: portainer_agent
+        image: portainer/agent:latest
+        restart_policy: always
+        published_ports:
+          - "9001:9001"
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+          - /var/lib/docker/volumes:/var/lib/docker/volumes
+        state: started
