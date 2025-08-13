@@ -1,5 +1,5 @@
 ---
-- name: Install fastfetch on Debian 12
+- name: Install fastfetch on Debian 12 (PC + Raspberry Pi)
   hosts: all
   become: yes
   tasks:
@@ -11,15 +11,31 @@
         state: present
         update_cache: yes
 
-    - name: Get latest fastfetch release URL
+    - name: Detect system architecture
+      ansible.builtin.command: dpkg --print-architecture
+      register: system_arch
+      changed_when: false
+
+    - name: Get latest fastfetch release data
       ansible.builtin.uri:
         url: https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest
         return_content: yes
       register: release_data
 
-    - name: Extract .deb download URL
+    - name: Set fastfetch download URL for correct architecture
       set_fact:
-        fastfetch_deb_url: "{{ release_data.json.assets | selectattr('name', 'search', 'amd64.deb') | map(attribute='browser_download_url') | first }}"
+        fastfetch_deb_url: >-
+          {{
+            release_data.json.assets
+            | selectattr('name', 'search', system_arch.stdout + '.deb')
+            | map(attribute='browser_download_url')
+            | first
+          }}
+
+    - name: Fail if no matching .deb found
+      ansible.builtin.fail:
+        msg: "No fastfetch .deb found for architecture {{ system_arch.stdout }}"
+      when: fastfetch_deb_url is not defined or fastfetch_deb_url == ""
 
     - name: Download fastfetch .deb
       ansible.builtin.get_url:
