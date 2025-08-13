@@ -8,6 +8,12 @@
         name:
           - curl
           - tar
+          - git
+          - cmake
+          - gcc
+          - g++
+          - pkg-config
+          - libwayland-dev
         state: present
         update_cache: yes
 
@@ -22,27 +28,54 @@
         return_content: yes
       register: release_data
 
-    - name: Set fastfetch download URL for correct architecture
+    - name: Search for .deb URL
       set_fact:
-        fastfetch_deb_url: >-
+        fastfetch_deb_url_list: >-
           {{
             release_data.json.assets
             | selectattr('name', 'search', system_arch.stdout + '.deb')
             | map(attribute='browser_download_url')
-            | first
+            | list
           }}
 
-    - name: Fail if no matching .deb found
-      ansible.builtin.fail:
-        msg: "No fastfetch .deb found for architecture {{ system_arch.stdout }}"
-      when: fastfetch_deb_url is not defined or fastfetch_deb_url == ""
+    - name: Set .deb URL if available
+      set_fact:
+        fastfetch_deb_url: "{{ fastfetch_deb_url_list[0] }}"
+      when: fastfetch_deb_url_list | length > 0
 
-    - name: Download fastfetch .deb
-      ansible.builtin.get_url:
-        url: "{{ fastfetch_deb_url }}"
-        dest: /tmp/fastfetch.deb
-        mode: '0644'
+    - name: Download and install from .deb if available
+      block:
+        - name: Download fastfetch .deb
+          ansible.builtin.get_url:
+            url: "{{ fastfetch_deb_url }}"
+            dest: /tmp/fastfetch.deb
+            mode: '0644'
 
-    - name: Install fastfetch
-      ansible.builtin.apt:
-        deb: /tmp/fastfetch.deb
+        - name: Install fastfetch .deb
+          ansible.builtin.apt:
+            deb: /tmp/fastfetch.deb
+      when: fastfetch_deb_url is defined
+
+    - name: Build from source if no .deb available
+      block:
+        - name: Clone fastfetch source
+          ansible.builtin.git:
+            repo: https://github.com/fastfetch-cli/fastfetch.git
+            dest: /tmp/fastfetch-src
+            depth: 1
+
+        - name: Create build directory
+          ansible.builtin.file:
+            path: /tmp/fastfetch-src/build
+            state: directory
+
+        - name: Compile fastfetch
+          ansible.builtin.command:
+            cmd: cmake .. && make -j$(nproc)
+            chdir: /tmp/fastfetch-src/build
+
+        - name: Install compiled fastfetch
+          ansible.builtin.command:
+            cmd: make install
+            chdir: /tmp/fastfetch-src/build
+      when: fastfetch_deb_url is not defined
