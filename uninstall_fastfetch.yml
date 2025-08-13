@@ -1,0 +1,63 @@
+---
+- name: Full Clean Removal of Fastfetch
+  hosts: all
+  become: yes
+  tasks:
+
+    - name: Ensure Fastfetch is removed via APT
+      apt:
+        name: fastfetch
+        state: absent
+        purge: yes
+        autoremove: yes
+      ignore_errors: yes
+
+    - name: Remove Fastfetch binary from /usr/local/bin
+      file:
+        path: /usr/local/bin/fastfetch
+        state: absent
+
+    - name: Remove Fastfetch binary from /usr/bin
+      file:
+        path: /usr/bin/fastfetch
+        state: absent
+
+    - name: Remove Fastfetch binary from ~/.local/bin
+      file:
+        path: "{{ ansible_env.HOME }}/.local/bin/fastfetch"
+        state: absent
+
+    - name: Remove Fastfetch source directory
+      file:
+        path: "{{ ansible_env.HOME }}/fastfetch"
+        state: absent
+
+    - name: Remove Fastfetch config directory
+      file:
+        path: "{{ ansible_env.HOME }}/.config/fastfetch"
+        state: absent
+
+    - name: Remove Fastfetch cache directory
+      file:
+        path: "{{ ansible_env.HOME }}/.cache/fastfetch"
+        state: absent
+
+    - name: Remove any leftover Fastfetch files from /opt
+      file:
+        path: /opt/fastfetch
+        state: absent
+
+    - name: Verify Fastfetch removal
+      shell: |
+        if command -v fastfetch &>/dev/null; then
+            echo "Fastfetch still present at $(which fastfetch)"
+            exit 1
+        else
+            echo "Fastfetch successfully uninstalled."
+        fi
+      register: check_fastfetch
+      ignore_errors: yes
+
+    - name: Show verification result
+      debug:
+        msg: "{{ check_fastfetch.stdout }}"
