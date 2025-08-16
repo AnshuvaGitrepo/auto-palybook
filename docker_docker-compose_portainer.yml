@@ -1,5 +1,5 @@
 ---
-- name: Setup Docker, Docker Compose, and Portainer
+- name: Setup Update+Upgrade, Set time zone, Docker, Docker Compose, and Portainer
   hosts: all
   become: yes
   vars:
