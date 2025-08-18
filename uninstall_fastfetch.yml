@@ -1,63 +1,71 @@
 ---
-- name: Full Clean Removal of Fastfetch
+- name: Uninstall Fastfetch (multi-distro + multi-arch)
   hosts: all
-  become: yes
+  become: true
+  gather_facts: true
+
+  vars:
+    arch_map:
+      x86_64: "amd64"
+      amd64: "amd64"
+      i386: "i386"
+      i686: "i386"
+      armv7l: "armhf"
+      armhf: "armhf"
+      aarch64: "arm64"
+      arm64: "arm64"
+
   tasks:
 
-    - name: Ensure Fastfetch is removed via APT
+    - name: Map system architecture
+      set_fact:
+        system_arch: "{{ arch_map[ansible_architecture] | default('unknown') }}"
+
+    - name: Debug detected info
+      debug:
+        msg: "Distro: {{ ansible_distribution }} ({{ ansible_distribution_release | default('n/a') }}) | Arch: {{ system_arch }}"
+
+    # --- Debian/Ubuntu family ---
+    - name: Remove Fastfetch (Debian/Ubuntu)
       apt:
         name: fastfetch
         state: absent
         purge: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Autoremove dependencies (Debian/Ubuntu)
+      apt:
         autoremove: yes
-      ignore_errors: yes
+      when: ansible_os_family == "Debian"
 
-    - name: Remove Fastfetch binary from /usr/local/bin
-      file:
-        path: /usr/local/bin/fastfetch
+    # --- RedHat family ---
+    - name: Remove Fastfetch (RHEL/CentOS/Fedora/Rocky/Alma)
+      package:
+        name: fastfetch
         state: absent
+      when: ansible_os_family == "RedHat"
 
-    - name: Remove Fastfetch binary from /usr/bin
-      file:
-        path: /usr/bin/fastfetch
+    # --- Arch family ---
+    - name: Remove Fastfetch (Arch/Manjaro)
+      community.general.pacman:
+        name: fastfetch
         state: absent
+      when: ansible_distribution in ["Archlinux", "ManjaroLinux"]
 
-    - name: Remove Fastfetch binary from ~/.local/bin
-      file:
-        path: "{{ ansible_env.HOME }}/.local/bin/fastfetch"
+    # --- openSUSE family ---
+    - name: Remove Fastfetch (openSUSE/SLES)
+      community.general.zypper:
+        name: fastfetch
         state: absent
+      when: ansible_os_family == "Suse"
 
-    - name: Remove Fastfetch source directory
+    # --- Fallback cleanup ---
+    - name: Remove Fastfetch binary manually (if present)
       file:
-        path: "{{ ansible_env.HOME }}/fastfetch"
+        path: "{{ item }}"
         state: absent
-
-    - name: Remove Fastfetch config directory
-      file:
-        path: "{{ ansible_env.HOME }}/.config/fastfetch"
-        state: absent
-
-    - name: Remove Fastfetch cache directory
-      file:
-        path: "{{ ansible_env.HOME }}/.cache/fastfetch"
-        state: absent
-
-    - name: Remove any leftover Fastfetch files from /opt
-      file:
-        path: /opt/fastfetch
-        state: absent
-
-    - name: Verify Fastfetch removal
-      shell: |
-        if command -v fastfetch &>/dev/null; then
-            echo "[WARNING] Fastfetch still present at $(which fastfetch)"
-        else
-            echo "Fastfetch successfully uninstalled."
-        fi
-      register: check_fastfetch
-      changed_when: false
-      failed_when: false
-
-    - name: Show verification result
-      debug:
-        msg: "{{ check_fastfetch.stdout }}"
+      with_items:
+        - /usr/local/bin/fastfetch
+        - /usr/bin/fastfetch
+      when: ansible_os_family not in ["Debian", "RedHat", "Suse"] and
+            ansible_distribution not in ["Archlinux", "ManjaroLinux"]
