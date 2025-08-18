@@ -1,45 +1,110 @@
 ---
-- name: Uninstall Fastfetch (multi-distro + multi-arch)
+- name: Install Fastfetch on multi-distro and multi-arch systems
   hosts: all
-  become: true
-  gather_facts: true
-
-  vars:
-    arch_map:
-      x86_64: "amd64"
-      amd64: "amd64"
-      i386: "i386"
-      i686: "i386"
-      armv7l: "armhf"
-      armhf: "armhf"
-      aarch64: "arm64"
-      arm64: "arm64"
-
+  become: yes
   tasks:
 
-    - name: Map system architecture
-      set_fact:
-        system_arch: "{{ arch_map[ansible_architecture] | default('unknown') }}"
+    - name: Gather facts
+      ansible.builtin.setup:
+        gather_subset:
+          - os_family
+          - architecture
+          - distribution
+          - distribution_version
 
-    - name: Debug detected info
-      debug:
-        msg: "Distro: {{ ansible_distribution }} ({{ ansible_distribution_release | default('n/a') }}) | Arch: {{ system_arch }}"
-
-    # --- Debian/Ubuntu family ---
-    - name: Remove Fastfetch (Debian/Ubuntu)
-      apt:
-        name: fastfetch
-        state: absent
-        purge: yes
-      when: ansible_os_family == "Debian"
-
-    - name: Autoremove dependencies (Debian/Ubuntu)
-      apt:
-        autoremove: yes
-      when: ansible_os_family == "Debian"
-
-    # --- RedHat family ---
-    - name: Remove Fastfetch (RHEL/CentOS/Fedora/Rocky/Alma)
+    - name: Ensure required tools are installed
       package:
+        name:
+          - wget
+          - curl
+          - tar
+        state: present
+
+    - name: Define architecture mapping
+      set_fact:
+        fastfetch_arch_map:
+          x86_64: "amd64"
+          amd64: "amd64"
+          i386: "i386"
+          i686: "i386"
+          armv7l: "armhf"
+          armhf: "armhf"
+          aarch64: "arm64"
+          arm64: "arm64"
+
+    - name: Set Fastfetch architecture
+      set_fact:
+        fastfetch_arch: "{{ fastfetch_arch_map[ansible_architecture] | default('amd64') }}"
+
+    # ---------------- Debian/Ubuntu ----------------
+    - name: Download Fastfetch .deb for Debian/Ubuntu
+      ansible.builtin.get_url:
+        url: "https://github.com/fastfetch-cli/fastfetch/releases/latest/download/fastfetch-linux-{{ fastfetch_arch }}.deb"
+        dest: "/tmp/fastfetch.deb"
+        mode: '0644'
+      when: ansible_facts['os_family'] == "Debian"
+      ignore_errors: yes
+
+    - name: Install Fastfetch .deb package
+      ansible.builtin.apt:
+        deb: "/tmp/fastfetch.deb"
+      when: ansible_facts['os_family'] == "Debian"
+      ignore_errors: yes
+
+    # ---------------- Fedora / RHEL ----------------
+    - name: Install Fastfetch via dnf/yum
+      ansible.builtin.package:
         name: fastfetch
-        state: absent
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+      ignore_errors: yes
+
+    # ---------------- Arch Linux ----------------
+    - name: Install Fastfetch via pacman
+      community.general.pacman:
+        name: fastfetch
+        state: present
+      when: ansible_facts['os_family'] == "Archlinux"
+      ignore_errors: yes
+
+    # ---------------- Fallback (build from source) ----------------
+    - name: Install build tools (fallback)
+      package:
+        name:
+          - git
+          - cmake
+          - gcc
+          - pkg-config
+          - meson
+          - ninja-build
+        state: present
+      when: fastfetch_version is not defined or fastfetch_version.rc != 0
+
+    - name: Clone Fastfetch source
+      ansible.builtin.git:
+        repo: "https://github.com/fastfetch-cli/fastfetch.git"
+        dest: "/usr/local/src/fastfetch"
+        version: "master"
+      when: fastfetch_version is not defined or fastfetch_version.rc != 0
+
+    - name: Build and install Fastfetch from source
+      ansible.builtin.shell: |
+        cd /usr/local/src/fastfetch
+        mkdir -p build && cd build
+        cmake ..
+        make -j$(nproc)
+        make install
+      args:
+        executable: /bin/bash
+      when: fastfetch_version is not defined or fastfetch_version.rc != 0
+
+    # ---------------- Verification ----------------
+    - name: Verify Fastfetch installation
+      ansible.builtin.command: fastfetch --version
+      register: fastfetch_version
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Show Fastfetch version
+      ansible.builtin.debug:
+        msg: "Fastfetch installed version: {{ fastfetch_version.stdout | default('not installed') }}"
